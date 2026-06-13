@@ -12,11 +12,12 @@ public class PlayerMovement : MonoBehaviour
 
     [Header("Camera")]
     public Transform cameraTransform;
+    public ThirdPersonCamera thirdPersonCamera; // To check FPP or TPP
 
     private CharacterController controller;
     private Animator animator;
 
-    private float verticalVelocity = 0f; // Only track vertical separately
+    private float verticalVelocity = 0f;
     private bool isGrounded;
 
     void Start()
@@ -56,14 +57,16 @@ public class PlayerMovement : MonoBehaviour
         bool running = Input.GetKey(KeyCode.LeftShift);
         float speed = running ? runSpeed : walkSpeed;
 
-        // Combine horizontal movement with vertical velocity
         Vector3 finalMove = move * speed;
         finalMove.y = verticalVelocity;
 
         controller.Move(finalMove * Time.deltaTime);
 
-        // Rotate player to face movement direction
-        if (move.magnitude > 0.1f)
+        // In TPP rotate player toward movement direction
+        // In FPP player body already rotates with camera yaw
+        bool isFirstPerson = thirdPersonCamera != null && thirdPersonCamera.IsFirstPerson();
+
+        if (!isFirstPerson && move.magnitude > 0.1f)
         {
             Quaternion targetRotation = Quaternion.LookRotation(move);
             transform.rotation = Quaternion.Lerp(transform.rotation, targetRotation, Time.deltaTime * rotationSpeed);
@@ -73,9 +76,7 @@ public class PlayerMovement : MonoBehaviour
         float blendSpeed = 0f;
 
         if (move.magnitude > 0.1f)
-        {
             blendSpeed = running ? 1f : 0.5f;
-        }
 
         if (animator != null)
             animator.SetFloat("Speed", blendSpeed);
@@ -87,9 +88,8 @@ public class PlayerMovement : MonoBehaviour
 
         if (isGrounded)
         {
-            verticalVelocity = -2f; // Small downward force to stay grounded
+            verticalVelocity = -2f;
 
-            // Jump
             if (Input.GetKeyDown(KeyCode.Space))
             {
                 verticalVelocity = Mathf.Sqrt(jumpHeight * -2f * gravity);
@@ -100,7 +100,6 @@ public class PlayerMovement : MonoBehaviour
         }
         else
         {
-            // Apply gravity only when not grounded
             verticalVelocity += gravity * Time.deltaTime;
         }
     }

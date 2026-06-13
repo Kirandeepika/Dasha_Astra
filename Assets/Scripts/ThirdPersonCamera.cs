@@ -3,7 +3,14 @@ using UnityEngine;
 public class ThirdPersonCamera : MonoBehaviour
 {
     [Header("Target")]
-    public Transform target; // Assign your Player here
+    public Transform target;
+    public Transform playerBody;
+
+    [Header("FPP Hand Renderers")]
+    public Renderer[] handRenderers; // Assign ONLY hand renderers here in Inspector
+
+    [Header("First Person Settings")]
+    public Vector3 firstPersonOffset = new Vector3(0f, 1.7f, 0f);
 
     [Header("Distance Settings")]
     public float distance = 5f;
@@ -16,8 +23,8 @@ public class ThirdPersonCamera : MonoBehaviour
 
     [Header("Rotation Settings")]
     public float mouseSensitivity = 3f;
-    public float minVerticalAngle = -20f;
-    public float maxVerticalAngle = 60f;
+    public float minVerticalAngle = -80f;
+    public float maxVerticalAngle = 80f;
 
     [Header("Smoothing")]
     public float rotationSmoothing = 10f;
@@ -35,6 +42,7 @@ public class ThirdPersonCamera : MonoBehaviour
     private Quaternion smoothedRotation;
 
     private bool cursorLocked = true;
+    private bool isFirstPerson = false;
 
     void Start()
     {
@@ -51,12 +59,70 @@ public class ThirdPersonCamera : MonoBehaviour
     void LateUpdate()
     {
         if (target == null) return;
-        if (!cursorLocked) return; // Stop rotating when puzzle is open
+        if (!cursorLocked) return;
 
+        HandleViewToggle();
         HandleRotationInput();
-        HandleZoomInput();
-        HandleCameraPosition();
+
+        if (isFirstPerson)
+            HandleFirstPersonCamera();
+        else
+        {
+            HandleZoomInput();
+            HandleThirdPersonCamera();
+        }
     }
+
+    // ------------------- VIEW TOGGLE -------------------
+
+    void HandleViewToggle()
+    {
+        if (Input.GetKeyDown(KeyCode.V))
+        {
+            isFirstPerson = !isFirstPerson;
+
+            if (isFirstPerson)
+            {
+                // Hide full body, show only hands
+                SetBodyVisible(false);
+                SetHandsVisible(true);
+                Debug.Log("Switched to First Person");
+            }
+            else
+            {
+                // Show full body, hide hands overlay
+                SetBodyVisible(true);
+                SetHandsVisible(false);
+                Debug.Log("Switched to Third Person");
+            }
+        }
+    }
+
+    // Disable ALL renderers on player body
+    void SetBodyVisible(bool visible)
+    {
+        if (playerBody == null) return;
+
+        Renderer[] renderers = playerBody.GetComponentsInChildren<Renderer>();
+        foreach (Renderer r in renderers)
+        {
+            r.enabled = visible;
+        }
+    }
+
+    // Enable ONLY hand renderers
+    void SetHandsVisible(bool visible)
+    {
+        if (handRenderers == null) return;
+
+        foreach (Renderer r in handRenderers)
+        {
+            if (r != null)
+                r.enabled = visible;
+        }
+    }
+
+    // ------------------- ROTATION -------------------
 
     void HandleRotationInput()
     {
@@ -67,7 +133,12 @@ public class ThirdPersonCamera : MonoBehaviour
         currentPitch -= mouseY;
 
         currentPitch = Mathf.Clamp(currentPitch, minVerticalAngle, maxVerticalAngle);
+
+        if (isFirstPerson && target != null)
+            target.rotation = Quaternion.Euler(0f, currentYaw, 0f);
     }
+
+    // ------------------- ZOOM (TPP only) -------------------
 
     void HandleZoomInput()
     {
@@ -76,23 +147,29 @@ public class ThirdPersonCamera : MonoBehaviour
         currentDistance = Mathf.Clamp(currentDistance, minDistance, maxDistance);
     }
 
-    void HandleCameraPosition()
+    // ------------------- FIRST PERSON CAMERA -------------------
+
+    void HandleFirstPersonCamera()
+    {
+        Vector3 eyePosition = target.position + Vector3.up * firstPersonOffset.y;
+        transform.position = eyePosition;
+        transform.rotation = Quaternion.Euler(currentPitch, currentYaw, 0f);
+    }
+
+    // ------------------- THIRD PERSON CAMERA -------------------
+
+    void HandleThirdPersonCamera()
     {
         Vector3 targetPos = target.position + Vector3.up * heightOffset;
 
         Quaternion desiredRotation = Quaternion.Euler(currentPitch, currentYaw, 0f);
-
         Vector3 desiredDirection = desiredRotation * Vector3.back;
-        Vector3 desiredPosition = targetPos + desiredDirection * currentDistance;
 
-        // Camera collision
         float adjustedDistance = currentDistance;
         RaycastHit hit;
 
         if (Physics.SphereCast(targetPos, collisionRadius, desiredDirection, out hit, currentDistance, collisionLayers))
-        {
             adjustedDistance = Mathf.Clamp(hit.distance, minDistance, currentDistance);
-        }
 
         Vector3 finalPosition = targetPos + desiredDirection * adjustedDistance;
 
@@ -102,6 +179,8 @@ public class ThirdPersonCamera : MonoBehaviour
         transform.position = smoothedPosition;
         transform.rotation = smoothedRotation;
     }
+
+    // ------------------- CURSOR LOCK -------------------
 
     public void UnlockCursor()
     {
@@ -115,5 +194,12 @@ public class ThirdPersonCamera : MonoBehaviour
         cursorLocked = true;
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
+    }
+
+    // ------------------- PUBLIC GETTER -------------------
+
+    public bool IsFirstPerson()
+    {
+        return isFirstPerson;
     }
 }
