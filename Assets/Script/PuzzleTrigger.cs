@@ -123,5 +123,7 @@ public class PuzzleTrigger : MonoBehaviour
         // Show Press E text again if player still inside trigger
         if (playerInside && pressEText != null)
             pressEText.gameObject.SetActive(true);
+
+        GameProgress.Instance.puzzle1Solved = true;
     }
 }
